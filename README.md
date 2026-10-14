@@ -3,8 +3,6 @@
 Svensk motsvarighet till Hemingway Editor. En enda fil, `index.html` — öppna den i webbläsaren,
 ingen server och ingen installation. Texten sparas lokalt i webbläsaren mellan besöken.
 
-**Live:** https://alovio-klarsprak.vercel.app
-
 Vill du ha en lokal adress: `python3 -m http.server 4173` i den här mappen.
 
 ## Vad den mäter
