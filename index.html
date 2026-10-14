@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klarspråk — svensk textgranskare</title>
+<style>
+:root{
+  --bg:#f7f6f3; --panel:#ffffff; --ink:#1c1b19; --ink-svag:#6b6862; --linje:#e4e1da;
+  --accent:#1c1b19; --ok:#1a7f4b; --varning:#b4552a;
+  --f-svar:#fdf0b8; --f-mycket:#fbcfc9; --f-krangel:#e3d7fb;
+  --f-adverb:#c9e2fb; --f-passiv:#c6ecd3; --f-negation:#fbdcbe; --f-upprepning:#fbd3ea;
+  --k-svar:#c9a227; --k-mycket:#d1453b; --k-krangel:#7a5af5;
+  --k-adverb:#2b7fd4; --k-passiv:#1a9950; --k-negation:#d1750f; --k-upprepning:#d13b93;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16161a; --panel:#1e1e23; --ink:#eceae6; --ink-svag:#96938c; --linje:#2e2e35;
+    --accent:#eceae6; --ok:#4ecb84; --varning:#f0915c;
+    --f-svar:rgba(250,204,21,.26); --f-mycket:rgba(248,113,113,.30);
+    --f-krangel:rgba(167,139,250,.34); --f-adverb:rgba(96,165,250,.34);
+    --f-passiv:rgba(52,211,153,.30); --f-negation:rgba(251,146,60,.30);
+    --f-upprepning:rgba(244,114,182,.30);
+    --k-svar:#e0b430; --k-mycket:#f07068; --k-krangel:#a78bfa;
+    --k-adverb:#60a5fa; --k-passiv:#34d399; --k-negation:#fb923c; --k-upprepning:#f472b6;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+
+/* ---------- topprad ---------- */
+header{
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  padding:12px 22px; border-bottom:1px solid var(--linje); background:var(--panel);
+}
+.logo{font-weight:650; letter-spacing:-.015em; font-size:17px; margin-right:2px}
+.logo span{color:var(--ink-svag); font-weight:400}
+.lagen{display:flex; background:var(--bg); border:1px solid var(--linje); border-radius:8px; padding:2px}
+.lagen button{border:0; background:none; padding:5px 14px; border-radius:6px; color:var(--ink-svag)}
+.lagen button[aria-pressed="true"]{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.verktyg{margin-left:auto; display:flex; gap:8px; align-items:center}
+.verktyg button{
+  border:1px solid var(--linje); background:var(--panel); border-radius:8px; padding:6px 12px; color:var(--ink-svag);
+}
+.verktyg button:hover{color:var(--ink); border-color:var(--ink-svag)}
+.lixbricka{
+  display:flex; align-items:baseline; gap:7px; padding:5px 13px; border-radius:8px;
+  background:var(--bg); border:1px solid var(--linje);
+}
+.lixbricka b{font-size:18px; font-weight:650; letter-spacing:-.02em}
+.lixbricka small{color:var(--ink-svag); font-size:12.5px}
+
+/* ---------- layout ---------- */
+main{display:flex; height:calc(100% - 57px); align-items:stretch}
+.skrivyta{position:relative; flex:1; overflow-y:auto; overflow-x:hidden; background:var(--bg)}
+.papper{position:relative; max-width:760px; margin:0 auto}
+.lager,.skrivyta textarea{
+  font:400 18.5px/1.78 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  padding:38px 34px 45vh; margin:0; border:0; width:100%;
+  white-space:pre-wrap; overflow-wrap:break-word; word-break:normal; tab-size:4;
+  letter-spacing:0; text-rendering:optimizeLegibility;
+}
+.lager{position:absolute; top:0; left:0; right:0; color:transparent; pointer-events:none; user-select:none}
+.skrivyta textarea{
+  position:relative; display:block; background:transparent; color:var(--ink);
+  resize:none; outline:none; overflow:hidden; caret-color:var(--k-mycket);
+  min-height:calc(100vh - 130px);
+}
+.skrivyta textarea::placeholder{color:var(--ink-svag); opacity:.65}
+
+/* ---------- markeringar ---------- */
+.m-svar{background:var(--f-svar)}
+.m-mycket{background:var(--f-mycket)}
+.o-krangel{background:var(--f-krangel); box-shadow:inset 0 -2px 0 var(--k-krangel)}
+.o-adverb{background:var(--f-adverb); box-shadow:inset 0 -2px 0 var(--k-adverb)}
+.o-passiv{background:var(--f-passiv); box-shadow:inset 0 -2px 0 var(--k-passiv)}
+.o-negation{background:var(--f-negation); box-shadow:inset 0 -2px 0 var(--k-negation)}
+.o-upprepning{background:var(--f-upprepning); box-shadow:inset 0 -2px 0 var(--k-upprepning)}
+body.av-svar .m-svar,body.av-mycket .m-mycket{background:none}
+body.av-krangel .o-krangel,body.av-adverb .o-adverb,body.av-passiv .o-passiv,
+body.av-negation .o-negation,body.av-upprepning .o-upprepning{background:none; box-shadow:none}
+body.skrivlage .lager{display:none}
+
+/* ---------- panel ---------- */
+aside{
+  width:335px; flex:none; border-left:1px solid var(--linje); background:var(--panel);
+  overflow-y:auto; padding:20px 20px 60px;
+}
+aside h2{font-size:11.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-svag); margin:26px 0 11px; font-weight:650}
+aside h2:first-child{margin-top:0}
+.matt{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--linje); border:1px solid var(--linje); border-radius:10px; overflow:hidden}
+.matt div{background:var(--panel); padding:9px 11px}
+.matt b{display:block; font-size:17px; font-weight:650; letter-spacing:-.02em}
+.matt small{color:var(--ink-svag); font-size:11.5px}
+.lixstapel{height:6px; border-radius:3px; background:var(--linje); margin:11px 0 6px; overflow:hidden; position:relative}
+.lixstapel i{display:block; height:100%; background:var(--accent); border-radius:3px; transition:width .18s}
+.lixtext{color:var(--ink-svag); font-size:12.5px; line-height:1.45}
+
+.nyckel{list-style:none; margin:0; padding:0}
+.nyckel li{margin:0 0 5px}
+.nyckel button{
+  width:100%; display:flex; align-items:center; gap:9px; border:1px solid transparent; background:none;
+  padding:7px 9px; border-radius:8px; text-align:left;
+}
+.nyckel button:hover{border-color:var(--linje)}
+.nyckel .prick{width:13px; height:13px; border-radius:4px; flex:none}
+.nyckel .txt{flex:1; font-size:13.5px}
+.nyckel .antal{font-variant-numeric:tabular-nums; font-weight:650; font-size:13.5px}
+.nyckel button[aria-pressed="false"]{opacity:.38}
+.nyckel button[aria-pressed="false"] .prick{background:none!important; border:1.5px solid var(--ink-svag)}
+
+/* Vid markören */
+.markor{
+  border:1px solid var(--linje); border-radius:10px; padding:11px 12px; background:var(--bg);
+  display:flex; flex-direction:column; gap:7px; min-height:78px; justify-content:center;
+}
+.markor .rad{display:flex; align-items:center; gap:8px}
+.markor .prick{width:11px; height:11px; border-radius:3.5px; flex:none}
+.markor .ord{font-weight:650; font-size:14px}
+.markor .vad{color:var(--ink-svag); font-size:12px}
+.markor .varfor{font-size:12.5px; line-height:1.45; color:var(--ink)}
+.markor .mening{font-size:12.5px; line-height:1.45; color:var(--ink-svag); border-top:1px solid var(--linje); padding-top:7px}
+.markor .mening b{color:var(--ink); font-weight:600}
+.markor button{
+  align-self:flex-start; border:1px solid var(--linje); background:var(--panel);
+  border-radius:6px; padding:4px 11px; font-size:12.5px;
+}
+.markor button:hover{border-color:var(--ink-svag)}
+.markor .vila{color:var(--ink-svag); font-size:12.5px; line-height:1.45; font-style:italic}
+
+.nyckel .mal{font-size:11px; color:var(--ink-svag); font-variant-numeric:tabular-nums}
+.nyckel .antal.over{color:var(--varning)}
+
+.forslag{list-style:none; margin:0; padding:0}
+.forslag li{
+  display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--linje); font-size:13.5px;
+}
+.forslag li:last-child{border-bottom:0}
+.forslag .par{flex:1; min-width:0}
+.forslag .fran{text-decoration:line-through; text-decoration-color:var(--ink-svag); opacity:.75}
+.forslag .till{font-weight:600}
+.forslag .n{color:var(--ink-svag); font-variant-numeric:tabular-nums; font-size:12px}
+.forslag button{
+  border:1px solid var(--linje); background:none; border-radius:6px; padding:3px 9px; font-size:12px; color:var(--ink-svag);
+}
+.forslag button:hover{color:var(--ink); border-color:var(--ink-svag)}
+
+.regler{list-style:none; margin:0; padding:0}
+.regler li{display:flex; align-items:baseline; gap:9px; padding:5.5px 0; font-size:13.5px; border-bottom:1px solid var(--linje)}
+.regler li:last-child{border-bottom:0}
+.regler .ikon{width:15px; flex:none; font-weight:700}
+.regler .ja{color:var(--ok)}
+.regler .nej{color:var(--varning)}
+.regler .namn{flex:1}
+.regler .varde{color:var(--ink-svag); font-variant-numeric:tabular-nums; font-size:12.5px}
+.fot{margin-top:26px; padding-top:14px; border-top:1px solid var(--linje); color:var(--ink-svag); font-size:11.5px; line-height:1.55}
+.tom{color:var(--ink-svag); font-size:13px; font-style:italic; padding:2px 0}
+
+@media (max-width:900px){
+  main{flex-direction:column; height:auto}
+  aside{width:auto; border-left:0; border-top:1px solid var(--linje)}
+  .skrivyta{min-height:60vh}
+  .lager,.skrivyta textarea{padding:26px 20px 20vh}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Klarspråk<span> · svensk textgranskare</span></div>
+  <div class="lagen">
+    <button id="lage-skriv" aria-pressed="false">Skriv</button>
+    <button id="lage-granska" aria-pressed="true">Granska</button>
+  </div>
+  <div class="verktyg">
+    <div class="lixbricka"><b id="lix-tal">–</b><small id="lix-namn">LIX</small></div>
+    <button id="knapp-exempel">Exempel</button>
+    <button id="knapp-kopiera">Kopiera</button>
+    <button id="knapp-rensa">Rensa</button>
+  </div>
+</header>
+
+<main>
+  <div class="skrivyta" id="skrivyta">
+    <div class="papper">
+      <div class="lager" id="lager" aria-hidden="true"></div>
+      <textarea id="text" spellcheck="true" placeholder="Skriv eller klistra in din text här…"></textarea>
+    </div>
+  </div>
+
+  <aside>
+    <h2>Vid markören</h2>
+    <div class="markor" id="markor"></div>
+
+    <h2>Läsbarhet</h2>
+    <div class="lixstapel"><i id="lix-stapel" style="width:0"></i></div>
+    <p class="lixtext" id="lix-text">LIX räknar meningslängd och andel långa ord. Under 40 är lätt, över 50 är tungt.</p>
+
+    <h2>Text</h2>
+    <div class="matt">
+      <div><b id="m-ord">0</b><small>ord</small></div>
+      <div><b id="m-meningar">0</b><small>meningar</small></div>
+      <div><b id="m-snitt">0</b><small>ord/mening</small></div>
+      <div><b id="m-langa">0 %</b><small>långa ord</small></div>
+      <div><b id="m-lastid">0 min</b><small>lästid</small></div>
+      <div><b id="m-taltid">0 min</b><small>uppläst</small></div>
+    </div>
+
+    <h2>Markeringar</h2>
+    <ul class="nyckel" id="nyckel"></ul>
+
+    <h2>Byt i hela texten</h2>
+    <ul class="forslag" id="forslag"></ul>
+
+    <h2>Nio regler för bra text</h2>
+    <ul class="regler" id="regler"></ul>
+
+    <p class="fot">
+      Läsbarheten mäts med LIX (Björnsson), inte med Hemingways engelska stavelsemått.
+      Gult sätts vid 25 ord, rött vid 35. Hemingway lämnar meningar på 33 ord med enkla ord
+      omarkerade, så gränsen här är redan strängare. Passiv form och adverb hittas med
+      mönster och ordlistor, så enstaka fel förekommer —
+      markeringen är ett förslag, inte en dom.
+    </p>
+  </aside>
+</main>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   ORDLISTOR
+   ===================================================================== */
+
+/* Krångelord och byråkratsvenska med enklare alternativ.
+   Längre fraser först i uppslaget — matchningen sorterar om på längd. */
+const KRANGEL = {
+  // myndighetssvenska
+  "erhålla":"få","erhåller":"får","erhålls":"fås","erhållit":"fått","erlägga":"betala","inkomma med":"skicka",
+  "insända":"skicka","tillställa":"skicka","tillhandahålla":"ge","tillhandahåller":"ger",
+  "nyttja":"använda","nyttjar":"använder","begagna":"använda","brukar sig av":"använder",
+  "föreligga":"finnas","föreligger":"finns","förefinnas":"finnas","existerar":"finns",
+  "utgöra":"vara","utgör":"är","uppgå till":"vara","uppgår till":"är",
+  "erfordra":"kräva","erfordras":"krävs","fordra":"kräva","påfordra":"kräva",
+  "åstadkomma":"göra","verkställa":"genomföra","effektuera":"genomföra","expediera":"skicka",
+  "inneha":"ha","innehar":"har","besitta":"ha","besitter":"har","förfoga över":"ha",
+  "underrätta":"berätta för","informera om":"berätta om",
+  "anhålla om":"be om","hemställa":"be om","påkalla":"be om",
+  "invänta":"vänta på",
+  "beakta":"tänka på","ta i beaktande":"tänka på","tillgodose":"möta",
+  "föranleda":"orsaka","medföra":"leda till","resultera i":"leda till",
+  "innefatta":"innehålla","inbegripa":"innehålla",
+  "tillse":"se till",
+  "påbörja":"börja","påbörjar":"börjar","initiera":"starta","initierar":"startar",
+  "igångsätta":"starta","inväntar":"väntar på","utför":"gör","verkställer":"genomför",
+  "beaktar":"tänker på","medför":"leder till","åstadkommer":"gör","erlägger":"betalar",
+  "genomföra en analys av":"analysera","göra en bedömning av":"bedöma",
+  "vidta åtgärder":"göra något","företa":"göra","utföra":"göra",
+  // bindeord och stelbenta fraser
+  "beträffande":"om","angående":"om","vad gäller":"om",
+  "vad beträffar":"om","när det gäller":"om","med avseende på":"om","i fråga om":"om",
+  "huruvida":"om","därest":"om","under förutsättning att":"om","i det fall att":"om",
+  "för det fall":"om","såvida":"om",
+  
+  "således":"alltså","följaktligen":"alltså",
+  "i syfte att":"för att","i avsikt att":"för att","med syftet att":"för att",
+  "med anledning av":"på grund av","till följd av":"på grund av","föranlett av":"på grund av",
+  "på grund av att":"eftersom","med hänsyn till att":"eftersom","i och med att":"eftersom",
+  
+  "i enlighet med":"enligt","i överensstämmelse med":"enligt",
+  "i relation till":"jämfört med","i förhållande till":"jämfört med",
+  "med hjälp av":"med","medelst":"med","genom användande av":"med",
+  "till dess att":"tills",
+  "därutöver":"dessutom",
+  "inledningsvis":"först","avslutningsvis":"till sist","slutligen":"till sist",
+  "samtliga":"alla","ett flertal":"flera","åtskilliga":"många",
+  "ett antal":"några","i ringa omfattning":"lite",
+  "exempelvis":"till exempel","approximativt":"ungefär","cirka":"ungefär",
+  "i dagsläget":"nu","för närvarande":"nu","i nuläget":"nu","dags dato":"i dag",
+  "innevarande år":"i år","föregående år":"förra året",
+  "vederbörande":"personen",
+  "samt":"och",
+  // konsultsvenska
+  "implementera":"införa","implementerar":"inför","implementering":"införande",
+  "optimera":"förbättra","optimerar":"förbättrar",
+  "maximera":"öka","minimera":"minska","effektivisera":"förenkla","kvalitetssäkra":"kontrollera",
+  "adressera":"ta itu med","adresserar":"tar itu med","facilitera":"leda","kommunicera ut":"berätta",
+  "operationalisera":"genomföra","konkretisera":"göra konkret","synliggöra":"visa",
+  "problematisera":"ifrågasätta","paradigmskifte":"omsvängning","synergier":"samordningsvinster",
+  "proaktiv":"förutseende","dynamisk":"rörlig","robust":"stabil",
+  "utifrån ett perspektiv":"sett från","på en övergripande nivå":"i stort",
+  // anglicismer med svensk motsvarighet
+  "insight":"insikt","insights":"insikter","learnings":"lärdomar","mindset":"inställning",
+  "framework":"ramverk","dashboard":"översikt","deadline":"slutdatum","feedback":"återkoppling",
+  "outcome":"resultat","revenue":"intäkter","growth":"tillväxt","momentum":"fart",
+  "leverage":"hävstång","stakeholder":"intressent","deliverable":"leverans",
+  "roadmap":"plan","milestone":"delmål","benchmark":"jämförelse","timeline":"tidsplan",
+  "best practice":"beprövad metod","pain points":"problem","key takeaway":"huvudpoäng",
+  "actionable":"konkret","alignment":"samsyn","onboarding":"introduktion",
+  "low hanging fruit":"enkla vinster",
+  "bandwidth":"tid","touch base":"stämma av","reach out":"höra av sig","follow up":"följa upp",
+  "commitment":"åtagande","target":"mål","performance":"prestanda",
+  "case":"fall","level up":"höja nivån","scope":"omfattning","effort":"arbete"
+};
+
+/* Krångelord värda att märka ut men omöjliga att byta rakt av: ersättningen har en
+   annan satsdelstyp och skulle göra meningen ogrammatisk. De får ingen Byt-knapp. */
+const KRANGEL_FLAGGA = [
+  "dock","emellertid","likväl","icke desto mindre","sålunda","härav följer","varefter",
+  "härvid","varvid","dessförinnan","omfatta","omfattar","ytterligare","avvakta","avvaktar",
+  "säkerställa","säkerställer","delge","meddela","avseende","rörande","i samband med",
+  "vid tidpunkten för","ovannämnda","nedan angivna","förevarande","holistisk","förslagsvis",
+  "möjliggöra","möjliggör","game changer","kick off","no brainer","var och en","i det att",
+  "därefter","envar","i stor utsträckning","jämte"
+];
+
+/* Adverb och försvagande fraser. Suffixreglerna nedan fångar resten. */
+const ADVERB = [
+  "verkligen","egentligen","faktiskt","ganska","väldigt","otroligt","extremt","oerhört",
+  "ytterst","enormt","fruktansvärt","hemskt","jättemycket","rätt så","tämligen",
+  "riktigt","precis","totalt","absolut","definitivt","fullständigt",
+  "helt enkelt","bokstavligen","liksom","alltså liksom","på något sätt","på sätt och vis",
+  "i princip","i stort sett","delvis","parvis","betydligt","avsevärt","väsentligt",
+  "markant","synnerligen","oavbrutet","mer eller mindre","till viss del","i viss mån","någorlunda",
+  "kanske","möjligen","eventuellt","troligen","förmodligen","antagligen","sannolikt",
+  "förhoppningsvis","tyvärr nog","väl","bara","endast","blott",
+  "för det mesta","som regel","i regel","oftast","sällan","alltid","aldrig någonsin",
+  "det är viktigt att notera att","det bör nämnas att","det kan konstateras att",
+  "man kan säga att","jag skulle vilja säga att","jag skulle säga att","det finns en möjlighet att",
+  "kommer att","ska komma att","skulle kunna","skulle vilja","torde","lär komma",
+  "ha möjlighet att","vara i behov av","göra en insats","börja med att","försöka att",
+  "på ett bra sätt","på ett effektivt sätt","i syfte att kunna"
+];
+
+/* Kortare ord på -vis är substantiv ("bevis", "servis", "devis"), inte adverb.
+   Längdkravet i arAdverb() håller dem utanför. */
+
+/* Deponens, reciproka verb och s-ord som inte är passiv. */
+const INTE_PASSIV = new Set([
+  "finns","fanns","funnits","hoppas","hoppades","trivs","trivdes","trivts","minns","mindes",
+  "andas","andades","tycks","tycktes","syns","syntes","vistas","vistades","umgås","umgicks",
+  "lyckas","lyckades","lyckats","misslyckas","misslyckades","låtsas","låtsades","skäms","skämdes",
+  "svettas","färdas","åldras","envisas","nalkas","kräks","idas","töras","brås",
+  "träffas","träffades","ses","sågs","möts","möttes","hörs","hördes","slåss","skiljas",
+  "enas","enades","enats","finnas","tyckas","synas","skiljdes","åtskiljas","hoppas",
+  "närmas","känns","kändes","verkas","behagas",
+  "sorts","slags","korts","orts","ports","dess","vars","oss","hos","alltemellanåt"
+]);
+
+/* Vanliga passivformer i presens och infinitiv — svåra att fånga med mönster. */
+const PASSIV_ORD = new Set([
+  "används","användas","görs","göras","tas","tagas","ges","givas","sägs","sägas","sätts","sättas",
+  "ställs","ställas","hanteras","skickas","byggs","byggas","säljs","säljas","köps","köpas",
+  "skapas","levereras","betalas","skrivs","skrivas","läses","hittas","utförs","utföras",
+  "genomförs","genomföras","beslutas","krävs","krävas","behövs","behövas","anses","upplevs",
+  "uppfattas","väljs","väljas","ändras","uppdateras","kontrolleras","mäts","mätas","testas",
+  "implementeras","prioriteras","definieras","beskrivs","presenteras","publiceras","lagras",
+  "sparas","raderas","delas","nås","ökas","minskas","förbättras","effektiviseras","optimeras",
+  "automatiseras","kommuniceras","informeras","erbjuds","erbjudas","tillhandahålls","bearbetas",
+  "granskas","godkänns","avslås","registreras","bokas","planeras","styrs","leds","drivs",
+  "avgörs","fastställs","bedöms","utvärderas","rapporteras","dokumenteras","installeras",
+  "kartläggs","läggs","utses","anlitas","avslutas","inleds","startas","stoppas","körs","sköts",
+  "följs","mottas","sammanställs","redovisas","faktureras","debiteras","signeras","undertecknas",
+  "arkiveras","sorteras","filtreras","matchas","kopplas","integreras","synkas","synkroniseras",
+  "exporteras","importeras","analyseras","summeras","beräknas","uppskattas","tolkas","översätts",
+  "formuleras","utformas","designas","lanseras","marknadsförs","distribueras","besvaras","tilldelas",
+  "anmäls","nekas","införs","ersätts","fördröjs","handläggs","dras","ges","döms","sänds","knyts","hålls",
+  "förs","bärs","tillförs","medges","avges","inges","återges","utses","avslås","nås","åläggs"
+]);
+
+/* Negationer. Regel sju: säg vad läsaren ska göra, inte vad hen ska låta bli. */
+const NEGATION = [
+  "inte","icke","ej","aldrig","ingen","inget","inga","ingenting","ingendera","varken",
+  "utan att","undvik","undvika","sluta","låt bli","glöm inte","missa inte","avstå från"
+];
+
+/* Pleonasmer och dubbleringar. */
+const UPPREPNING = {
+  "helt och hållet":"helt","först och främst":"först",
+  "samarbeta tillsammans":"samarbeta","kombinera ihop":"kombinera","fortsätta vidare":"fortsätta",
+  "återkomma tillbaka":"återkomma","återupprepa":"upprepa","planera i förväg":"planera",
+  "samtidigt som ... samtidigt":"samtidigt","i dagens moderna samhälle":"i dag","samtidigt parallellt":"samtidigt",
+  "framtida planer":"planer","gratis present":"present","helt unik":"unik","väldigt unik":"unik",
+  "ny innovation":"innovation","personlig åsikt":"åsikt","faktisk sanning":"sanning",
+  "helt färdig":"färdig","nära intill":"nära","liten detalj":"detalj","kort sammanfattning":"sammanfattning",
+  "anledningen är på grund av":"därför att","orsaken beror på":"orsaken är",
+  "på grund av anledningen att":"eftersom","kan eventuellt":"kan","kanske möjligen":"kanske",
+  "börja med att först":"börja med","i slutändan till sist":"till sist",
+  "både ... och samtidigt":"både och",
+  "lyfta upp":"lyfta","upprepa igen":"upprepa","helt gratis":"gratis"
+};
+
+/* Adjektiv som liknar perfektparticip — undantas i "bli + particip". */
+const INTE_PARTICIP = new Set([
+  "ledsen","tillfreds","tillgänglig","färdig","mogen","trogen","liten","öppen","besviken",
+  "medveten","säker","vaken","galen","naken","ensam","ensamma","nöjda","gröna","bruna","blåa",
+  "sköna","rena","fina","sena","tunna","sanna","vana","dyra","dåliga","glada","stora",
+  "gravid","solid","absurd","morbid","hybrid","livrädd","ogift","stadd"
+]);
+
+/* Förkortningar avslutar aldrig en mening — de följs alltid av mer text. */
+const FORK_HARD = new Set([
+  "t.ex","bl.a","d.v.s","dvs","s.k","f.d","p.g.a","i.o.m","fr.o.m","t.o.m",
+  "ca","kl","nr","dr","prof","ang","enl","jfr","resp","inkl","exkl","bl","ex",
+  "tel","fig","kap","sid","vol"
+]);
+/* Dessa står ofta sist i meningen. Bryt när nästa ord börjar med versal. */
+const FORK_MJUK = new Set([
+  "osv","o.s.v","m.m","m.fl","mfl","etc","kr","st","milj","tkr","mkr","obs","ev","kg","km"
+]);
+
+/* =====================================================================
+   MOTOR
+   ===================================================================== */
+
+const ORD_RE = /[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu;
+
+function flykt(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
+
+/* Bygger ett uttryck som matchar hela ord eller fraser, längsta först. */
+function frasUttryck(termer){
+  const rena = termer.filter(t => !t.includes("...")).sort((a,b)=>b.length-a.length).map(flykt);
+  if(!rena.length) return null;
+  return new RegExp("(?<![\\p{L}\\p{N}_])(" + rena.join("|") + ")(?![\\p{L}\\p{N}_])","giu");
+}
+
+const RE_KRANGEL    = frasUttryck(Object.keys(KRANGEL));
+const RE_KR_FLAGGA  = frasUttryck(KRANGEL_FLAGGA);
+const RE_ADVERB     = frasUttryck(ADVERB);
+const RE_NEGATION   = frasUttryck(NEGATION);
+const RE_UPPREPNING = frasUttryck(Object.keys(UPPREPNING));
+
+function nastaTecken(text,i){
+  for(let j=i;j<text.length;j++) if(!/\s/.test(text[j])) return text[j];
+  return null;
+}
+
+function arForkortning(text,i,efter){
+  const fore = text.slice(Math.max(0,i-16), i+1);
+  const m = fore.match(/([\p{L}.]+)$/u);
+  if(!m) return false;
+  const t = m[1].toLowerCase().replace(/\.$/,"");
+  if(FORK_HARD.has(t)) return true;
+  if(FORK_MJUK.has(t)) return !(efter && /\p{Lu}/u.test(efter));
+  if(t.length===1) return true;                 // initial: A. Sundberg
+  return false;
+}
+
+function delaMeningar(text){
+  const rader=[]; let start=0; const n=text.length;
+  for(let i=0;i<n;i++){
+    const c=text[i]; let brott=false;
+    if(c==="\n"){ brott=true; }
+    else if(c==="."||c==="!"||c==="?"||c==="…"){
+      let j=i;
+      while(j+1<n && ".!?…".includes(text[j+1])) j++;
+      while(j+1<n && "\"'”’»)]".includes(text[j+1])) j++;   // punkt inuti citat
+      const direkt = text[j+1];
+      const efter  = nastaTecken(text,j+1);
+      let slutar;
+      if(efter===undefined || efter===null) slutar = true;
+      else if(direkt!==undefined && !/\s/.test(direkt)){
+        /* Ingen blank efter punkten. Klockslag (14.00), decimaler och webbadresser
+           ska hålla ihop; en glömd blank före versal är däremot en ny mening. */
+        slutar = /\p{Lu}/u.test(direkt) && !/[0-9]/.test(text[i-1]||"");
+      }
+      else slutar = /[\p{Lu}0-9"'“«\-–—•]/u.test(efter);
+      if(slutar && !arForkortning(text,i,efter)){ i=j; brott=true; }
+      else { i=j; }
+    }
+    if(brott){
+      if(text.slice(start,i+1).trim()) rader.push([start,i+1]);
+      start=i+1;
+    }
+  }
+  if(text.slice(start).trim()) rader.push([start,n]);
+  return rader;
+}
+
+/* Ord som visar att ett följande -as-ord är genitiv, inte passiv: "en veckas tid". */
+const GENITIV_FORE = new Set([
+  "en","ett","två","tre","fyra","fem","sex","sju","åtta","nio","tio","några","flera","par",
+  "halv","halvt","hel","helt","denna","detta","förra","senaste","kommande","gångna","varje","ena"
+]);
+
+/* Efter ett modalverb är en form på -as eller -s nästan alltid passiv infinitiv. */
+const MODALVERB = new Set([
+  "ska","skall","skulle","kan","kunde","kunna","bör","borde","måste","får","fick",
+  "vill","ville","lär","brukar","tänker","behöver","önskar"
+]);
+
+const HJALPVERB = new Set([
+  "har","hade","ha","haft","blivit","kan","kunde","kunnat","ska","skall","skulle",
+  "måste","bör","borde","lär","vill","velat","tänkt","hann","brukar"
+]);
+
+/* Finita passivformer känns igen på ändelsen. Supinum (-ats/-its/-ts) delar ändelse med
+   genitiv av substantiv ("insats", "resultats"), så där krävs ett hjälpverb i närheten. */
+function arPassiv(o, forra1, forra2){
+  if(INTE_PASSIV.has(o)) return false;
+  if(PASSIV_ORD.has(o)) return true;
+  if(o.length<6) return false;
+  if(/ades$/.test(o)) return true;
+  if(/[bcdfghjklmnprstvz](des|tes)$/.test(o)) return true;
+  if(/(ats|its|tts|ts)$/.test(o) && (HJALPVERB.has(forra1) || HJALPVERB.has(forra2))) return true;
+  if(/(as|s)$/.test(o) && MODALVERB.has(forra1)) return true;
+  /* Presens-s-passiv är den vanligaste passivformen och kan inte listas ord för ord.
+     Ändelsen delas med genitiv av substantiv på -a ("en veckas tid"), vilket räknaren
+     framför ordet skiljer ut. */
+  if(/as$/.test(o) && !GENITIV_FORE.has(forra1)) return true;
+  return false;
+}
+
+function arAdverb(o){
+  if(o.length<7) return false;
+  return /(ligen|vis|mässigt)$/.test(o);
+}
+
+function samlaFraser(text, re, typ, karta){
+  const funna=[]; if(!re) return funna;
+  re.lastIndex=0; let m;
+  while((m=re.exec(text))!==null){
+    const fran=m[1];
+    funna.push({start:m.index, end:m.index+fran.length, typ,
+                fran, till: karta ? karta[fran.toLowerCase()] : null});
+  }
+  return funna;
+}
+
+function analysera(text){
+  const meningar = delaMeningar(text).map(([a,b])=>{
+    const ra = text.slice(a,b);
+    const ord = ra.match(ORD_RE) || [];
+    const langa = ord.filter(o=>o.length>6).length;
+    const pct = ord.length ? Math.round(langa*100/ord.length) : 0;
+    const komman = (ra.match(/,/g)||[]).length;
+    /* Färgen mäter en enda sak: längd. Andelen långa ord vägdes in tidigare, men på
+       344 000 meningar avgjorde den bara 0,1 procent av fallen och gjorde till priset
+       av det omöjligt att veta vad en gul mening faktiskt anmärkte på. Ordrikedomen
+       syns i stället som långa ord i måtten och som krångelord i texten. */
+    let klass=null, orsak=null;
+    if(ord.length>=35){
+      klass="mycket";
+      orsak="Meningen är " + ord.length + " ord lång. Den bär mer än en tanke. Dela den.";
+    } else if(ord.length>=25){
+      klass="svar";
+      orsak="Meningen är " + ord.length + " ord lång. Den går att korta utan att tappa något.";
+    }
+    return {start:a, end:b, ord:ord.length, langa, pct, komman, klass, orsak};
+  });
+
+  /* ---- ordmarkeringar ---- */
+  let funna = [
+    ...samlaFraser(text, RE_UPPREPNING, "upprepning", UPPREPNING),
+    ...samlaFraser(text, RE_KRANGEL,    "krangel",    KRANGEL),
+    ...samlaFraser(text, RE_KR_FLAGGA,  "krangel",    null),
+    ...samlaFraser(text, RE_ADVERB,     "adverb",     null),
+    ...samlaFraser(text, RE_NEGATION,   "negation",   null)
+  ];
+
+  /* ordvis genomgång: adverbsuffix, passiv, bli + particip, dubblerade ord */
+  const tokens=[]; ORD_RE.lastIndex=0; let t;
+  while((t=ORD_RE.exec(text))!==null) tokens.push({o:t[0].toLowerCase(), start:t.index, end:t.index+t[0].length});
+  for(let i=0;i<tokens.length;i++){
+    const tk=tokens[i];
+    if(arAdverb(tk.o)) funna.push({start:tk.start,end:tk.end,typ:"adverb",fran:tk.o,till:null});
+    else if(arPassiv(tk.o, i>0?tokens[i-1].o:"", i>1?tokens[i-2].o:"")) funna.push({start:tk.start,end:tk.end,typ:"passiv",fran:tk.o,till:null});
+    if(i>0){
+      const f=tokens[i-1];
+      if(/^(bli|blir|blev|blivit|blivna)$/.test(f.o) && tk.o.length>=5
+         && !INTE_PARTICIP.has(tk.o) && /(ade|at|en|et|na|d)$/.test(tk.o)){
+        funna.push({start:f.start,end:tk.end,typ:"passiv",fran:f.o+" "+tk.o,till:null});
+      }
+      if(f.o===tk.o && tk.o.length>1 && !/^\d+$/.test(tk.o) && text.slice(f.end,tk.start).trim()===""){
+        funna.push({start:f.start,end:tk.end,typ:"upprepning",fran:f.o+" "+tk.o,till:tk.o});
+      }
+    }
+  }
+
+  /* längsta träff vinner vid överlapp */
+  funna.sort((a,b)=> (b.end-b.start)-(a.end-a.start) || a.start-b.start);
+  const upptagen = new Uint8Array(text.length);
+  const marker=[];
+  for(const m of funna){
+    let ledig=true;
+    for(let i=m.start;i<m.end;i++) if(upptagen[i]){ ledig=false; break; }
+    if(!ledig) continue;
+    for(let i=m.start;i<m.end;i++) upptagen[i]=1;
+    marker.push(m);
+  }
+  marker.sort((a,b)=>a.start-b.start);
+
+  /* ---- mått ---- */
+  const alla = text.match(ORD_RE) || [];
+  const ordN = alla.length;
+  const langaN = alla.filter(o=>o.length>6).length;
+  const menN = meningar.length;
+  const lix = (ordN && menN) ? Math.round(ordN/menN + langaN*100/ordN) : 0;
+  const rakna = typ => marker.filter(m=>m.typ===typ).length;
+  const framtid = marker.filter(m=>/^(kommer att|ska komma att|skulle kunna|skulle vilja|torde)$/.test(m.fran)).length;
+
+  return {
+    text, meningar, marker,
+    matt:{
+      ord:ordN, meningar:menN,
+      snitt: menN ? Math.round(ordN/menN*10)/10 : 0,
+      langaPct: ordN ? Math.round(langaN*100/ordN) : 0,
+      lix, tecken:text.length,
+      lastid:Math.max(ordN?1:0, Math.round(ordN/220)),
+      taltid:Math.max(ordN?1:0, Math.round(ordN/130)),
+      svar:meningar.filter(m=>m.klass==="svar").length,
+      mycket:meningar.filter(m=>m.klass==="mycket").length,
+      krangel:rakna("krangel"), adverb:rakna("adverb"), passiv:rakna("passiv"),
+      negation:rakna("negation"), upprepning:rakna("upprepning"),
+      framtid,
+      langMening: meningar.filter(m=>m.ord>25).length,
+      flerKomman: meningar.filter(m=>m.komman>=2).length
+    }
+  };
+}
+
+/* =====================================================================
+   GRÄNSSNITT
+   ===================================================================== */
+
+const KATEGORIER = [
+  {id:"mycket",     klass:"m-mycket",     namn:"Mycket lång mening", farg:"--f-mycket"},
+  {id:"svar",       klass:"m-svar",       namn:"Lång mening",        farg:"--f-svar"},
+  {id:"krangel",    klass:"o-krangel",    namn:"Krångelord",         farg:"--f-krangel"},
+  {id:"adverb",     klass:"o-adverb",     namn:"Adverb och svaga ord",farg:"--f-adverb"},
+  {id:"passiv",     klass:"o-passiv",     namn:"Passiv form",        farg:"--f-passiv"},
+  {id:"upprepning", klass:"o-upprepning", namn:"Upprepning",         farg:"--f-upprepning"},
+  {id:"negation",   klass:"o-negation",   namn:"Negation",           farg:"--f-negation"}
+];
+
+const VARFOR = {
+  krangel:    ["Krångelord", "Ett enklare ord säger samma sak."],
+  adverb:     ["Adverb", "Adverb är oftast en platshållare för ett svagt verb. Byt verbet, eller stryk ordet."],
+  passiv:     ["Passiv form", "Skriv vem som gör saken. Inte \u201ddörren stängdes\u201d utan \u201djag stängde dörren\u201d."],
+  negation:   ["Negation", "Säg vad läsaren ska göra, inte vad hen ska låta bli."],
+  upprepning: ["Upprepning", "Orden säger samma sak två gånger. Ett räcker."]
+};
+
+const LIX_BAND = [
+  [30,"mycket lätt","Barnbok. Går snabbt att läsa, men kan bli platt."],
+  [40,"lätt","Skönlitteratur och bra vardagsprosa. Sikta hit."],
+  [50,"medel","Dagstidning. Fungerar, men kan stramas åt."],
+  [60,"svår","Saklitteratur. Läsaren måste anstränga sig."],
+  [999,"mycket svår","Byråkrati. Skriv om."]
+];
+
+const EXEMPEL = `Med anledning av att ni tidigare har inkommit med en förfrågan avseende automatisering vill jag härmed tillhandahålla en sammanfattning av de tjänster som erbjuds, samt de förutsättningar som föreligger för ett eventuellt samarbete under innevarande år.
+
+Arbetet genomförs i tre steg. Inledningsvis kartläggs samtliga processer, varefter en analys av flödena görs, och slutligen implementeras lösningen i er befintliga miljö.
+
+Ni behöver egentligen inte göra någonting själva. Rapporten skickas automatiskt varje vecka och samtliga avvikelser dokumenteras löpande, vilket innebär att ni förhoppningsvis kommer att kunna spara ett flertal timmar per månad utan att någon manuell insats krävs.
+
+Hör gärna av er om ni har frågor.`;
+
+const ta      = document.getElementById("text");
+const lager   = document.getElementById("lager");
+const skrivyta= document.getElementById("skrivyta");
+/* Öppnas filen direkt från disk kan lagringen vara avstängd. Appen ska fungera ändå. */
+const lager_ = {
+  get(n,f){ try{ const v=localStorage.getItem(n); return v===null?f:v; }catch(_){ return f; } },
+  set(n,v){ try{ localStorage.setItem(n,v); }catch(_){} }
+};
+const av      = new Set(JSON.parse(lager_.get("klarsprak-av", '["negation"]')));
+
+function fly(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function ritaLager(res){
+  const {text, meningar, marker} = res, n = text.length;
+  const men = new Array(n).fill(null);
+  for(const m of meningar) if(m.klass) for(let i=m.start;i<m.end;i++) men[i]=m.klass;
+  const ord = new Array(n).fill(null);
+  for(const m of marker) for(let i=m.start;i<m.end;i++) ord[i]=m.typ;
+
+  let ut="", i=0;
+  while(i<n){
+    const a=men[i], b=ord[i]; let j=i+1;
+    while(j<n && men[j]===a && ord[j]===b) j++;
+    const bit = fly(text.slice(i,j));
+    if(a||b){
+      const kl = (a ? (a==="mycket"?"m-mycket":"m-svar") : "") + (a&&b?" ":"") + (b?"o-"+b:"");
+      ut += '<span class="'+kl+'">'+bit+'</span>';
+    } else ut += bit;
+    i=j;
+  }
+  lager.innerHTML = ut + "\n";
+}
+
+/* Ett tal utan jämförelse säger ingenting. Måltalen skalar med textens längd,
+   på samma sätt som Hemingway gör: färre meningar, lägre tak. */
+function malFor(id, m){
+  if(!m.meningar) return null;
+  if(id==="adverb")  return Math.floor(m.meningar/4);
+  if(id==="passiv")  return Math.floor(m.meningar/5);
+  if(id==="svar"){ const v=Math.floor(m.meningar/4); return v>0 ? v : null; }
+  return null;   /* rött talar för sig självt, övriga har inget naturligt tak */
+}
+
+function ritaNyckel(m){
+  const ul=document.getElementById("nyckel");
+  ul.innerHTML = KATEGORIER.map(k=>{
+    const pa = !av.has(k.id), n = m[k.id]||0, mal = malFor(k.id,m);
+    const over = mal!==null && n>mal;
+    return '<li><button data-id="'+k.id+'" aria-pressed="'+pa+'">'
+      + '<span class="prick" style="background:var('+k.farg+')"></span>'
+      + '<span class="txt">'+k.namn+'</span>'
+      + (mal!==null ? '<span class="mal">sikta på '+mal+'</span>' : '')
+      + '<span class="antal'+(over?' over':'')+'">'+n+'</span></button></li>';
+  }).join("");
+}
+
+/* ---- Vid markören: vad står jag i, och varför är det markerat ---- */
+let senaste = null;
+
+function ritaMarkor(){
+  const rutan = document.getElementById("markor");
+  if(!senaste || !ta.value.trim()){
+    rutan.innerHTML = '<p class="vila">Ställ markören i texten så visas varför stället är markerat.</p>';
+    return;
+  }
+  const i = ta.selectionStart;
+  const mark = senaste.marker.find(m => i>=m.start && i<=m.end && !av.has(m.typ));
+  const men  = senaste.meningar.find(m => i>=m.start && i<=m.end);
+  let ut = "";
+
+  if(mark){
+    const [namn, text] = VARFOR[mark.typ];
+    const farg = KATEGORIER.find(k=>k.id===mark.typ).farg;
+    ut += '<div class="rad"><span class="prick" style="background:var('+farg+')"></span>'
+        + '<span class="ord">'+fly(mark.fran)+'</span><span class="vad">'+namn+'</span></div>'
+        + '<p class="varfor">' + (mark.till
+            ? 'Skriv <b>'+fly(mark.till)+'</b> i stället.'
+            : (mark.typ==="krangel"
+                ? 'Går inte att byta rakt av utan att meningen bryts. Skriv om den i stället.'
+                : text)) + '</p>';
+    if(mark.till) ut += '<button id="byt-en">Byt bara den här</button>';
+  }
+
+  if(men && men.klass && !av.has(men.klass)){
+    const namn = men.klass==="mycket" ? "Mycket lång mening" : "Lång mening";
+    ut += '<p class="mening"><b>'+namn+'.</b> '+fly(men.orsak||"")+'</p>';
+  } else if(men && !mark){
+    ut += '<p class="vila">Ingen anmärkning här. '+men.ord+' ord.</p>';
+  }
+
+  rutan.innerHTML = ut || '<p class="vila">Ingen anmärkning här.</p>';
+  const knapp = document.getElementById("byt-en");
+  if(knapp) knapp.onclick = () => bytEn(mark);
+}
+
+/* Byter exakt den förekomsten, till skillnad från listan som byter alla. */
+function bytEn(m){
+  const t = ta.value, original = t.slice(m.start, m.end);
+  const ers = versal(original) ? m.till[0].toUpperCase()+m.till.slice(1) : m.till;
+  ta.value = t.slice(0,m.start) + ers + t.slice(m.end);
+  const pos = m.start + ers.length;
+  spara(); kor(); ta.focus(); ta.setSelectionRange(pos,pos); ritaMarkor();
+}
+
+function ritaForslag(res){
+  const ul=document.getElementById("forslag");
+  const grupp=new Map();
+  for(const m of res.marker){
+    if(av.has(m.typ)) continue;
+    const nyckel=m.typ+"|"+m.fran.toLowerCase();
+    const g=grupp.get(nyckel);
+    if(g) g.n++;
+    else grupp.set(nyckel,{typ:m.typ, fran:m.fran.toLowerCase(), till:m.till, n:1});
+  }
+  const rader=[...grupp.values()]
+    .sort((a,b)=> (b.till?1:0)-(a.till?1:0) || b.n-a.n)
+    .slice(0,14);
+  if(!rader.length){ ul.innerHTML='<li class="tom">Inget att byta ut. Snyggt.</li>'; return; }
+  ul.innerHTML = rader.map((r,i)=>
+    '<li><span class="par"><span class="fran">'+fly(r.fran)+'</span>'
+    + (r.till ? ' → <span class="till">'+fly(r.till)+'</span>' : ' <span class="n">· skriv om</span>')
+    + '</span><span class="n">'+(r.n>1?"×"+r.n:"")+'</span>'
+    + (r.till ? '<button data-byt="'+i+'">Byt alla</button>' : '')
+    + '</li>').join("");
+  ul.querySelectorAll("button[data-byt]").forEach(b=>{
+    b.onclick=()=>{ const r=rader[+b.dataset.byt]; bytUt(r.fran, r.till); };
+  });
+}
+
+function ritaRegler(m){
+  const rader=[
+    ["Enkla ord",           m.langaPct<=20,        m.langaPct+" % långa ord"],
+    ["Presens",             m.framtid===0,         m.framtid+" framtidsfraser"],
+    ["Aktiv form",          m.passiv===0,          m.passiv+" passiva"],
+    ["Inga adverb",         m.adverb===0,          m.adverb+" st"],
+    ["Korta meningar",      m.snitt<=14 && m.langMening===0, m.snitt+" ord i snitt"],
+    ["Max ett komma",       m.flerKomman===0,      m.flerKomman+" meningar"],
+    ["Positivt språk",      m.negation<=Math.max(1,Math.round(m.ord/100)), m.negation+" negationer"],
+    ["Inga upprepningar",   m.upprepning===0,      m.upprepning+" st"],
+    ["Läsbarhet under 40",  m.lix>0 && m.lix<40,   "LIX "+m.lix]
+  ];
+  document.getElementById("regler").innerHTML = rader.map(([namn,ok,varde])=>
+    '<li><span class="ikon '+(ok?"ja":"nej")+'">'+(ok?"✓":"✗")+'</span>'
+    + '<span class="namn">'+namn+'</span><span class="varde">'+varde+'</span></li>').join("");
+}
+
+function ritaMatt(m){
+  document.getElementById("m-ord").textContent      = m.ord;
+  document.getElementById("m-meningar").textContent = m.meningar;
+  document.getElementById("m-snitt").textContent    = m.snitt;
+  document.getElementById("m-langa").textContent    = m.langaPct+" %";
+  document.getElementById("m-lastid").textContent   = m.lastid+" min";
+  document.getElementById("m-taltid").textContent   = m.taltid+" min";
+
+  const band = LIX_BAND.find(b=>m.lix<b[0]) || LIX_BAND[LIX_BAND.length-1];
+  document.getElementById("lix-tal").textContent  = m.ord ? m.lix : "–";
+  document.getElementById("lix-namn").textContent = m.ord ? band[1] : "LIX";
+  document.getElementById("lix-stapel").style.width = Math.min(100, m.lix/70*100)+"%";
+  document.getElementById("lix-text").textContent = m.ord
+    ? "LIX "+m.lix+" — "+band[1]+". "+band[2]
+    : "LIX räknar meningslängd och andel långa ord. Under 40 är lätt, över 50 är tungt.";
+}
+
+function versal(s){ return s[0] === s[0].toUpperCase() && s[0] !== s[0].toLowerCase(); }
+
+function bytUt(fran, till){
+  const re = new RegExp("(?<![\\p{L}\\p{N}_])"+flykt(fran)+"(?![\\p{L}\\p{N}_])","giu");
+  const pos = ta.selectionStart;
+  ta.value = ta.value.replace(re, t => versal(t) ? till[0].toUpperCase()+till.slice(1) : till);
+  ta.setSelectionRange(Math.min(pos, ta.value.length), Math.min(pos, ta.value.length));
+  spara(); kor();
+}
+
+function hojd(){ ta.style.height="0"; ta.style.height=ta.scrollHeight+"px"; }
+function spara(){ lager_.set("klarsprak-text", ta.value); }
+
+let timer=null;
+function kor(){
+  hojd();
+  const res = analysera(ta.value);
+  senaste = res;
+  ritaLager(res); ritaMatt(res.matt); ritaNyckel(res.matt);
+  ritaForslag(res); ritaRegler(res.matt); ritaMarkor();
+}
+function korSnart(){ clearTimeout(timer); timer=setTimeout(kor,140); }
+
+/* ---- händelser ---- */
+ta.addEventListener("input", ()=>{ hojd(); spara(); korSnart(); });
+["click","keyup","select","focus"].forEach(h => ta.addEventListener(h, ritaMarkor));
+window.addEventListener("resize", hojd);
+
+document.getElementById("nyckel").addEventListener("click", e=>{
+  const b=e.target.closest("button[data-id]"); if(!b) return;
+  const id=b.dataset.id;
+  if(av.has(id)) av.delete(id); else av.add(id);
+  lager_.set("klarsprak-av", JSON.stringify([...av]));
+  tillampaAv(); kor();
+});
+function tillampaAv(){
+  KATEGORIER.forEach(k=>document.body.classList.toggle("av-"+k.id, av.has(k.id)));
+}
+
+const bSkriv=document.getElementById("lage-skriv"), bGranska=document.getElementById("lage-granska");
+function lage(skriv){
+  document.body.classList.toggle("skrivlage", skriv);
+  bSkriv.setAttribute("aria-pressed", skriv);
+  bGranska.setAttribute("aria-pressed", !skriv);
+  lager_.set("klarsprak-lage", skriv?"skriv":"granska");
+}
+bSkriv.onclick=()=>lage(true);
+bGranska.onclick=()=>lage(false);
+
+document.getElementById("knapp-exempel").onclick=()=>{ ta.value=EXEMPEL; spara(); kor(); ta.focus(); };
+document.getElementById("knapp-rensa").onclick=()=>{ ta.value=""; spara(); kor(); ta.focus(); };
+document.getElementById("knapp-kopiera").onclick=async e=>{
+  try{ await navigator.clipboard.writeText(ta.value); }
+  catch(_){ ta.select(); document.execCommand("copy"); }
+  const k=e.currentTarget, t=k.textContent; k.textContent="Kopierat"; setTimeout(()=>k.textContent=t,1200);
+};
+
+/* ---- start ---- */
+const sparad = lager_.get("klarsprak-text", null);
+ta.value = sparad !== null ? sparad : EXEMPEL;
+lage(lager_.get("klarsprak-lage","granska")==="skriv");
+tillampaAv();
+kor();
+</script>
+</body>
+</html>
